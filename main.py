@@ -31,7 +31,7 @@ async def check_postgres():
     try:
         import asyncpg
 
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await asyncpg.connect(DATABASE_URL, timeout=10)
         await conn.execute("SELECT 1")
         await conn.close()
         db_ok = True
@@ -63,7 +63,7 @@ async def check_rabbitmq():
     try:
         import aio_pika
 
-        conn = await aio_pika.connect_robust(RABBITMQ_URL)
+        conn = await aio_pika.connect_robust(RABBITMQ_URL, timeout=10)
         await conn.close()
         rabbitmq_ok = True
         logger.info("RabbitMQ connected: %s", RABBITMQ_URL.split("@")[-1])
