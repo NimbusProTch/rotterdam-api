@@ -124,8 +124,15 @@ async def check_mysql():
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO)
     logger.info("Rotterdam API starting on port %d", PORT)
-    await asyncio.gather(check_postgres(), check_redis(), check_rabbitmq(), check_mongodb(), check_mysql())
+    # Run checks in background — don't block startup (liveness probe needs fast start)
+    asyncio.create_task(_run_checks())
     yield
+
+
+async def _run_checks():
+    """Run connectivity checks after startup (non-blocking)."""
+    await asyncio.sleep(2)  # Let server start first
+    await asyncio.gather(check_postgres(), check_redis(), check_rabbitmq(), check_mongodb(), check_mysql())
 
 
 app = FastAPI(title="Rotterdam API", lifespan=lifespan)
