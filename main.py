@@ -73,7 +73,7 @@ async def check_postgres():
     try:
         import asyncpg
 
-        conn = await asyncpg.connect(DATABASE_URL, timeout=10)
+        conn = await asyncpg.connect(DATABASE_URL, timeout=10, ssl="require")
         await conn.execute("SELECT 1")
         await conn.close()
         services["postgres"] = True
@@ -212,7 +212,7 @@ async def db_test():
     try:
         import asyncpg
 
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await asyncpg.connect(DATABASE_URL, ssl="require")
         result = await conn.fetchval("SELECT version()")
         await conn.close()
         return {"postgres_version": result}
