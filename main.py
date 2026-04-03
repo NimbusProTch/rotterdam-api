@@ -14,20 +14,54 @@ from fastapi import FastAPI
 logger = logging.getLogger("rotterdam-api")
 
 # Config from environment (auto-injected by Haven when services are connected)
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+# Haven injects: DATABASE_URL (may lack password), DB_HOST, DB_USER, DB_PASSWORD, DB_PORT, DB_NAME
+_raw_database_url = os.getenv("DATABASE_URL", "")
+_db_password = os.getenv("DB_PASSWORD", "")
+_db_host = os.getenv("DB_HOST", "")
+_db_port = os.getenv("DB_PORT", "")
+_db_user = os.getenv("DB_USER", "")
+_db_name = os.getenv("DB_NAME", "")
 REDIS_URL = os.getenv("REDIS_URL", "")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "")
-# MongoDB URL: prefer DATABASE_URL if it starts with mongodb://, then MONGODB_URL
-_db_url = os.getenv("DATABASE_URL", "")
-MONGODB_URL = (_db_url if _db_url.startswith("mongodb://") else "") or os.getenv("MONGODB_URL", "") or os.getenv("MONGO_URL", "")
-MYSQL_URL = os.getenv("MYSQL_URL", "")
-# MySQL individual fields (fallback if MYSQL_URL not set)
-MYSQL_HOST = os.getenv("DB_HOST", "")
-MYSQL_PORT = int(os.getenv("DB_PORT", "3306"))
-MYSQL_USER = os.getenv("DB_USER", "")
-MYSQL_PASSWORD = os.getenv("DB_PASSWORD", "")
-MYSQL_DB = os.getenv("DB_NAME", "mysql")
 PORT = int(os.getenv("PORT", "8080"))
+
+
+def _inject_password(url: str, password: str) -> str:
+    """Inject password into a URL like scheme://user@host → scheme://user:pass@host."""
+    if not url or not password or "://" not in url:
+        return url
+    from urllib.parse import quote
+    scheme, rest = url.split("://", 1)
+    if "@" in rest and ":" not in rest.split("@")[0]:
+        user, after_at = rest.split("@", 1)
+        return f"{scheme}://{user}:{quote(password, safe='')}@{after_at}"
+    return url
+
+
+# PostgreSQL: DATABASE_URL starting with postgresql://
+DATABASE_URL = ""
+if _raw_database_url.startswith("postgresql"):
+    DATABASE_URL = _inject_password(_raw_database_url, _db_password)
+elif _db_host and _raw_database_url == "" and _db_port == "5432":
+    from urllib.parse import quote
+    DATABASE_URL = f"postgresql://{_db_user}:{quote(_db_password, safe='')}@{_db_host}:{_db_port}/{_db_name}"
+
+# MongoDB: DATABASE_URL starting with mongodb:// or MONGODB_URL
+MONGODB_URL = ""
+if _raw_database_url.startswith("mongodb://"):
+    MONGODB_URL = _inject_password(_raw_database_url, _db_password)
+elif os.getenv("MONGODB_URL", ""):
+    MONGODB_URL = _inject_password(os.getenv("MONGODB_URL", ""), _db_password)
+
+# MySQL: MYSQL_URL or individual DB_* fields
+MYSQL_URL = os.getenv("MYSQL_URL", "")
+if MYSQL_URL:
+    MYSQL_URL = _inject_password(MYSQL_URL, _db_password)
+MYSQL_HOST = _db_host
+MYSQL_PORT = int(_db_port) if _db_port else 3306
+MYSQL_USER = _db_user
+MYSQL_PASSWORD = _db_password
+MYSQL_DB = _db_name or "mysql"
 
 # Connection state
 services = {"postgres": False, "redis": False, "rabbitmq": False, "mongodb": False, "mysql": False}
