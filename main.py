@@ -85,7 +85,11 @@ async def check_mongodb():
         from pymongo import MongoClient
 
         client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000)
-        client.admin.command("ping")
+        db = client.get_default_database()
+        if db is not None:
+            db.command("ping")
+        else:
+            client.admin.command("ping")
         client.close()
         services["mongodb"] = True
         logger.info("MongoDB connected: %s", mongo_url.split("@")[-1] if "@" in mongo_url else mongo_url)
@@ -208,7 +212,9 @@ async def mongo_test():
         from pymongo import MongoClient
 
         client = MongoClient(MONGODB_URL, serverSelectionTimeoutMS=10000)
-        db = client.get_default_database() or client["haven_test"]
+        db = client.get_default_database()
+        if db is None:
+            db = client["haven_test"]
         collection = db["connectivity_test"]
         collection.insert_one({"test": "haven", "status": "ok"})
         doc = collection.find_one({"test": "haven"})
